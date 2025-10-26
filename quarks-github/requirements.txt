@@ -1,5 +1,0 @@
-flask==3.0.0
-flask-cors==4.0.0
-backtrader==1.9.78.123
-yfinance==0.2.33
-pandas==2.1.4
