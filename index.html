@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚛️ Quarks PRO - Stock Backtesting</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0A0A0A; color: #FFF; line-height: 1.6; }
+        nav { background: #1A1A1A; border-bottom: 1px solid #333; padding: 1rem 2rem; }
+        nav h1 { font-size: 1.5rem; }
+        nav h1 .badge { background: #2196F3; color: white; font-size: 0.6rem; padding: 0.25rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .card { background: #242424; border: 1px solid #333; border-radius: 8px; padding: 2rem; margin-bottom: 2rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; color: #A0A0A0; font-size: 0.875rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 600; }
+        input, select { width: 100%; padding: 0.75rem; background: #1A1A1A; border: 1px solid #333; border-radius: 6px; color: #FFF; font-size: 1rem; }
+        input:focus, select:focus { outline: none; border-color: #2196F3; }
+        button { width: 100%; padding: 1rem; background: #2196F3; color: white; border: none; border-radius: 6px; font-size: 1.125rem; font-weight: 600; cursor: pointer; transition: all 200ms; }
+        button:hover:not(:disabled) { background: #42A5F5; transform: scale(1.01); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .grid { display: grid; gap: 1rem; }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        .metric-card { background: #242424; border: 1px solid #333; border-radius: 8px; padding: 1.5rem; text-align: center; }
+        .metric-label { color: #A0A0A0; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600; }
+        .metric-value { font-size: 2rem; font-weight: 700; font-family: monospace; }
+        .success { color: #00C853; }
+        .error { color: #FF1744; }
+        #results, #customBuilder { display: none; }
+        #results.show, #customBuilder.show { display: block; }
+        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10,10,10,0.95); align-items: center; justify-content: center; z-index: 100; }
+        #loading.show { display: flex; }
+        .spinner { border: 4px solid #333; border-top: 4px solid #2196F3; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* CRITICAL: Fixed chart container to prevent shrinking bug */
+        .chart-container {
+            position: relative;
+            height: 500px;
+            width: 100%;
+            margin: 1.5rem 0;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .chart-btn {
+            padding: 0.5rem 1rem;
+            background: #1A1A1A;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #FFF;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 200ms;
+            width: auto;
+        }
+        
+        .chart-btn:hover { background: #2A2A2A; }
+        .chart-btn.active { background: #2196F3; border-color: #2196F3; }
+        .chart-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .help-text { font-size: 0.75rem; color: #666; margin-top: 0.25rem; }
+        
+        .info-box {
+            background: #1A1A1A;
+            border: 1px solid #444;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            color: #A0A0A0;
+        }
+        
+        @media (max-width: 768px) { 
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .container { padding: 1rem; }
+            .chart-container { height: 400px; }
+        }
+    </style>
+</head>
+<body>
+    <nav><h1>⚛️ Quarks<span class="badge">PRO</span></h1></nav>
+
+    <div class="container">
+        <div style="text-align: center; margin: 3rem 0;">
+            <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Professional Stock Backtesting</h2>
+            <p style="color: #A0A0A0; font-size: 1.25rem;">11 Strategies • Custom Builder • Real Data • Interactive Charts</p>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Configure Backtest</h3>
+            
+            <div class="form-group">
+                <label for="ticker">Stock Ticker</label>
+                <input type="text" id="ticker" value="AAPL" placeholder="AAPL">
+            </div>
+
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate" value="2020-01-01">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate" value="2023-01-01">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="strategy">Trading Strategy</label>
+                <select id="strategy" onchange="toggleCustomBuilder()">
+                    <option value="sma-crossover">SMA Crossover (10/30)</option>
+                    <option value="ema-crossover">EMA Crossover (9/21)</option>
+                    <option value="rsi">RSI Strategy (30/70)</option>
+                    <option value="macd">MACD Strategy</option>
+                    <option value="bollinger">Bollinger Bands</option>
+                    <option value="stochastic">Stochastic Oscillator</option>
+                    <option value="momentum">Momentum Strategy</option>
+                    <option value="triple-sma">Triple SMA (5/15/30)</option>
+                    <option value="mean-reversion">Mean Reversion</option>
+                    <option value="buy-hold">Buy & Hold</option>
+                    <option value="custom">🔧 Custom Strategy</option>
+                </select>
+            </div>
+
+            <!-- Custom Strategy Builder -->
+            <div id="customBuilder">
+                <div style="background: #1A1A1A; border: 1px solid #444; padding: 1.5rem; border-radius: 6px; margin-bottom: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem; color: #2196F3;">🔧 Custom Strategy Builder</h4>
+                    
+                    <div class="form-group">
+                        <label for="customIndicator">Indicator</label>
+                        <select id="customIndicator">
+                            <option value="SMA">Simple Moving Average (SMA)</option>
+                            <option value="EMA">Exponential Moving Average (EMA)</option>
+                            <option value="RSI">Relative Strength Index (RSI)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-2">
+                        <div class="form-group">
+                            <label for="customPeriod1">Short Period / RSI Period</label>
+                            <input type="number" id="customPeriod1" value="10" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="customPeriod2">Long Period / RSI Oversold</label>
+                            <input type="number" id="customPeriod2" value="30" min="1">
+                        </div>
+                    </div>
+                    <p class="help-text">For SMA/EMA: Buy when short crosses above long. For RSI: Buy when below period2 value.</p>
+                </div>
+            </div>
+
+            <!-- Position Sizing -->
+            <div class="form-group">
+                <label for="positionSizing">Position Sizing</label>
+                <select id="positionSizing" onchange="togglePositionValue()">
+                    <option value="percent">Percentage of Portfolio</option>
+                    <option value="all-in">All-In (100%)</option>
+                    <option value="fixed-amount">Fixed Dollar Amount</option>
+                    <option value="fixed-shares">Fixed Number of Shares</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="positionValueGroup">
+                <label for="positionValue" id="positionValueLabel">Percentage (%)</label>
+                <input type="number" id="positionValue" value="95" min="1">
+            </div>
+
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label for="cash">Initial Cash ($)</label>
+                    <input type="number" id="cash" value="100000" step="1000">
+                </div>
+                <div class="form-group">
+                    <label for="commission">Commission (decimal)</label>
+                    <input type="number" id="commission" value="0.001" step="0.0001">
+                    <p class="help-text">0.001 = 0.1% commission</p>
+                </div>
+            </div>
+
+            <button onclick="runBacktest()" id="runBtn">🚀 Run Backtest</button>
+        </div>
+
+        <div id="results">
+            <h3 style="margin-bottom: 1.5rem;">Backtest Results</h3>
+            
+            <div class="grid grid-4" id="metrics"></div>
+
+            <div class="card">
+                <h4 style="margin-bottom: 1rem;">📈 Interactive Chart</h4>
+                
+                <div class="chart-controls">
+                    <button class="chart-btn active" id="showPrice" onclick="toggleLine('price')">📊 Stock Price</button>
+                    <button class="chart-btn active" id="showPortfolio" onclick="toggleLine('portfolio')">💰 Portfolio Value</button>
+                    <button class="chart-btn active" id="showBuy" onclick="toggleMarkers('buy')">🟢 Buy Signals</button>
+                    <button class="chart-btn active" id="showSell" onclick="toggleMarkers('sell')">🔴 Sell Signals</button>
+                    <button class="chart-btn" onclick="resetZoom()">🔍 Reset Zoom</button>
+                </div>
+
+                <div class="info-box">
+                    💡 <strong>Chart Controls:</strong> Scroll to zoom, drag to pan, click legend to toggle data
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="chart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4 style="margin-bottom: 1rem;">📊 Detailed Metrics</h4>
+                <div class="grid grid-3" id="detailedMetrics"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading">
+        <div style="text-align: center;">
+            <div class="spinner"></div>
+            <p style="margin-top: 1rem;" id="loadingText">Running backtest...</p>
+        </div>
+    </div>
+
+    <script>
+        let chartInstance = null;
+        let chartData = null;
+        let visibilityState = {
+            price: true,
+            portfolio: true,
+            buyMarkers: true,
+            sellMarkers: true
+        };
+
+        function toggleCustomBuilder() {
+            const strategy = document.getElementById('strategy').value;
+            const builder = document.getElementById('customBuilder');
+            builder.style.display = strategy === 'custom' ? 'block' : 'none';
+        }
+
+        function togglePositionValue() {
+            const sizing = document.getElementById('positionSizing').value;
+            const group = document.getElementById('positionValueGroup');
+            const label = document.getElementById('positionValueLabel');
+            const input = document.getElementById('positionValue');
+            
+            if (sizing === 'all-in') {
+                group.style.display = 'none';
+            } else {
+                group.style.display = 'block';
+                if (sizing === 'percent') {
+                    label.textContent = 'Percentage (%)';
+                    input.value = 95;
+                } else if (sizing === 'fixed-amount') {
+                    label.textContent = 'Dollar Amount ($)';
+                    input.value = 10000;
+                } else if (sizing === 'fixed-shares') {
+                    label.textContent = 'Number of Shares';
+                    input.value = 100;
+                }
+            }
+        }
+
+        function toggleLine(type) {
+            visibilityState[type] = !visibilityState[type];
+            const btn = document.getElementById(type === 'price' ? 'showPrice' : 'showPortfolio');
+            btn.classList.toggle('active');
+            updateChart();
+        }
+
+        function toggleMarkers(type) {
+            visibilityState[type + 'Markers'] = !visibilityState[type + 'Markers'];
+            const btn = document.getElementById(type === 'buy' ? 'showBuy' : 'showSell');
+            btn.classList.toggle('active');
+            updateChart();
+        }
+
+        function resetZoom() {
+            if (chartInstance) {
+                chartInstance.resetZoom();
+            }
+        }
+
+        function updateChart() {
+            if (!chartInstance || !chartData) return;
+            
+            const datasets = [];
+            
+            // Stock Price Line
+            if (visibilityState.price) {
+                datasets.push({
+                    label: 'Stock Price',
+                    data: chartData.prices,
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.1,
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 2
+                });
+            }
+            
+            // Portfolio Value Line
+            if (visibilityState.portfolio) {
+                datasets.push({
+                    label: 'Portfolio Value',
+                    data: chartData.portfolioValues,
+                    borderColor: '#00C853',
+                    backgroundColor: 'rgba(0, 200, 83, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.1,
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 2
+                });
+            }
+            
+            // Buy/Sell Markers
+            const buyMarkers = [];
+            const sellMarkers = [];
+            
+            chartData.trades.forEach(trade => {
+                const index = chartData.dates.indexOf(trade.date);
+                if (index !== -1) {
+                    if (trade.type === 'BUY' && visibilityState.buyMarkers) {
+                        buyMarkers.push({
+                            x: index,
+                            y: trade.price
+                        });
+                    } else if (trade.type === 'SELL' && visibilityState.sellMarkers) {
+                        sellMarkers.push({
+                            x: index,
+                            y: trade.price
+                        });
+                    }
+                }
+            });
+            
+            if (buyMarkers.length > 0 && visibilityState.buyMarkers) {
+                datasets.push({
+                    label: 'Buy Signal',
+                    data: buyMarkers,
+                    borderColor: '#00C853',
+                    backgroundColor: '#00C853',
+                    yAxisID: 'y',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false,
+                    pointStyle: 'triangle'
+                });
+            }
+            
+            if (sellMarkers.length > 0 && visibilityState.sellMarkers) {
+                datasets.push({
+                    label: 'Sell Signal',
+                    data: sellMarkers,
+                    borderColor: '#FF1744',
+                    backgroundColor: '#FF1744',
+                    yAxisID: 'y',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false,
+                    pointStyle: 'triangle',
+                    rotation: 180
+                });
+            }
+            
+            chartInstance.data.datasets = datasets;
+            chartInstance.update('none'); // Update without animation to prevent flickering
+        }
+
+        async function runBacktest() {
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const btn = document.getElementById('runBtn');
+            
+            loading.classList.add('show');
+            btn.disabled = true;
+            results.classList.remove('show');
+            
+            try {
+                const strategy = document.getElementById('strategy').value;
+                const customParams = strategy === 'custom' ? {
+                    indicator: document.getElementById('customIndicator').value,
+                    period1: parseInt(document.getElementById('customPeriod1').value),
+                    period2: parseInt(document.getElementById('customPeriod2').value)
+                } : {};
+
+                const response = await fetch('http://localhost:5000/api/backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: document.getElementById('ticker').value.trim().toUpperCase(),
+                        start_date: document.getElementById('startDate').value,
+                        end_date: document.getElementById('endDate').value,
+                        strategy: strategy,
+                        initial_cash: parseFloat(document.getElementById('cash').value),
+                        commission: parseFloat(document.getElementById('commission').value),
+                        position_sizing: document.getElementById('positionSizing').value,
+                        position_value: parseFloat(document.getElementById('positionValue').value),
+                        custom_params: customParams
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                displayResults(data);
+                results.classList.add('show');
+                setTimeout(() => results.scrollIntoView({ behavior: 'smooth' }), 100);
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                loading.classList.remove('show');
+                btn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            const p = data.portfolio;
+            const m = data.metrics;
+            
+            document.getElementById('metrics').innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-label">Total Return</div>
+                    <div class="metric-value ${p.total_return >= 0 ? 'success' : 'error'}">
+                        $${p.total_return.toFixed(2)}
+                    </div>
+                    <div style="margin-top: 0.5rem; font-size: 1.25rem;" class="${p.total_return_pct >= 0 ? 'success' : 'error'}">
+                        ${p.total_return_pct >= 0 ? '+' : ''}${p.total_return_pct.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Sharpe Ratio</div>
+                    <div class="metric-value">${m.sharpe_ratio.toFixed(3)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Max Drawdown</div>
+                    <div class="metric-value error">${m.max_drawdown.toFixed(2)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Win Rate</div>
+                    <div class="metric-value">${m.win_rate.toFixed(1)}%</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #A0A0A0;">
+                        ${m.winning_trades}/${m.total_trades} trades
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detailedMetrics').innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-label">Starting Value</div>
+                    <div class="metric-value">$${p.starting_value.toLocaleString()}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Ending Value</div>
+                    <div class="metric-value">$${p.ending_value.toLocaleString()}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Trades</div>
+                    <div class="metric-value">${m.total_trades}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Winning Trades</div>
+                    <div class="metric-value success">${m.winning_trades}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Losing Trades</div>
+                    <div class="metric-value error">${m.losing_trades}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Trade</div>
+                    <div class="metric-value ${m.avg_trade >= 0 ? 'success' : 'error'}">
+                        $${m.avg_trade.toFixed(2)}
+                    </div>
+                </div>
+            `;
+            
+            // Store chart data globally
+            chartData = data.chart_data;
+            
+            // Reset visibility state
+            visibilityState = {
+                price: true,
+                portfolio: true,
+                buyMarkers: true,
+                sellMarkers: true
+            };
+            
+            // Reset buttons
+            document.querySelectorAll('.chart-btn').forEach(btn => {
+                if (btn.id !== 'resetZoom') {
+                    btn.classList.add('active');
+                }
+            });
+            
+            createChart();
+        }
+
+        function createChart() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            
+            // CRITICAL: Destroy existing chart to prevent memory leaks and shrinking bug
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.dates,
+                    datasets: [] // Will be populated by updateChart()
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // CRITICAL: Prevents shrinking
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#FFF', usePointStyle: true }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1A1A1A',
+                            titleColor: '#FFF',
+                            bodyColor: '#FFF',
+                            borderColor: '#333',
+                            borderWidth: 1
+                        },
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'xy',
+                            },
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'xy',
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#A0A0A0', maxTicksLimit: 10 },
+                            grid: { color: '#333' }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'Stock Price ($)', color: '#2196F3' },
+                            ticks: {
+                                color: '#A0A0A0',
+                                callback: v => '$' + v.toFixed(0)
+                            },
+                            grid: { color: '#333' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Portfolio Value ($)', color: '#00C853' },
+                            ticks: {
+                                color: '#A0A0A0',
+                                callback: v => '$' + v.toFixed(0)
+                            },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+            
+            updateChart();
+        }
+    </script>
+</body>
+</html>
